@@ -1,0 +1,43 @@
+# ============================================================
+# 基于图特征与机器学习的比特币异常交易识别系统
+# 依赖清单  （Python 3.10+，本机实测 3.12.2）
+# 安装： pip install -r requirements.txt
+# ============================================================
+
+# ---------- 核心运行依赖（跑通 6 个模块必须装）----------
+pandas>=2.0
+numpy>=1.24
+scikit-learn>=1.3
+networkx>=3.1
+matplotlib>=3.7
+
+# 模块4：SHAP 可解释性
+# 注意：shap 依赖 numba，numba 对 numpy 的版本上限较严；
+# 若安装后报 "numpy.dtype size changed"，执行
+#   pip install --force-reinstall shap
+shap>=0.44
+
+# 模块5：FastAPI 后端
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.5
+
+# 模块6：Streamlit 前端
+streamlit>=1.32
+pyvis>=0.3.2
+
+# pandas 的 DataFrame.style 样式表强依赖 jinja2，且 pandas 3.x 要求 >=3.1.5。
+# 缺了它前端所有带 .style 的表格会直接抛
+# "The '.style' accessor requires jinja2"，所以列为核心依赖。
+jinja2>=3.1.5
+
+# 模块5 记录推理峰值内存用；缺失时脚本自动降级，不装也能跑。
+psutil>=5.9
+
+# ---------- 可选（当前代码未使用，装了不影响）----------
+# seaborn>=0.13             # 画图美化，本项目直接用 matplotlib
+# imbalanced-learn>=0.11    # 若后续要试 SMOTE 等重采样方案
+
+# 说明：
+# 1) SQLite 走 Python 标准库 sqlite3，无需额外安装。
+# 2) 三个原始 CSV 体积较大（features 约 658MB），不纳入版本控制，见 .gitignore。

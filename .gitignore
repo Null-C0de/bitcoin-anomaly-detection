@@ -1,0 +1,29 @@
+# ===== 数据：体积大且可复现，不入库 =====
+# elliptic_txs_features.csv 约 658MB，远超市面 Git 平台建议单文件上限
+Data/*.csv
+
+# ===== 数据库：由 src/load_data.py + src/graph_features.py 一键重建 =====
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# ===== 模型与实验产物：由 src/train_compare.py 生成 =====
+outputs/
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# ===== 编辑器 / 系统 =====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
