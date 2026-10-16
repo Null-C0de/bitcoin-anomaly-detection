@@ -47,13 +47,22 @@ error_analysis.py —— 模块4：误报漏报分析 + SHAP 可解释性
      不要用测试集标签去构造任何特征（本脚本只读 predictions 里已经算好的概率）。
   2. shap 与 numpy/scikit-learn 版本不匹配时报 'numpy.dtype size changed' 之类错误，
      一般是二进制兼容问题，重装 shap 即可（pip install --force-reinstall shap）。
-  3. 抽样解释：对 6 万样本全量算 SHAP 会占 1-2GB 内存，脚本默认对 test 集
+  3. **shap 自带的加性校验会误报失败**：报
+     'ExplainerError: Additivity check failed in TreeExplainer'。
+     原因是 RF 有 100 棵树，float32 舍入使 "SHAP 之和 == 模型输出" 的严格相等
+     校验失败（实测 0.2951 vs 0.3150）。这**不是**版本问题，千万不要照提示去
+     重装 shap——那样会让几分钟的计算在进度 100% 时全部丢弃。
+     本脚本已在 shap_values_illicit() 里默认 check_additivity=False，
+     并用 test_shap_additivity() 在概率尺度上独立复验（实测最大偏差 0.0001）。
+  4. **SHAP 的值是概率尺度**：expected_value ≈ 0.167（class_weight='balanced' 下的
+     平均 P(illicit)），可直接与 predict_proba 相加，**不要**再做 logit 变换。
+  5. 抽样解释：对 6 万样本全量算 SHAP 会占 1-2GB 内存，脚本默认对 test 集
      分层抽样 max_samples 条用于全局图，误差案例本身始终全量精确解释。
-  4. 性能：interventional 扰动耗时 ≈ 样本数 × 背景数 × 树数 × 深度。
+  6. 性能：interventional 扰动耗时 ≈ 样本数 × 背景数 × 树数 × 深度。
      默认 4000 样本 / 100 背景；赶时间可加
        --perturbation tree_path_dependent
      秒级出图，或把 --background-samples 调到 20。
-  4. 特征名顺序必须与训练时一致 —— 脚本从 .pkl 里读取保存的 features 列表，
+  7. 特征名顺序必须与训练时一致 —— 脚本从 .pkl 里读取保存的 features 列表，
      绝不自己拼列名，避免“训练用 A 顺序、解释用 B 顺序”的静默错位。
 """
 from __future__ import annotations
