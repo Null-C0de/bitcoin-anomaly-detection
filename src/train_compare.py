@@ -89,6 +89,7 @@ from common import (  # noqa: E402
     POS_LABEL,
     RANDOM_STATE,
     TABLE_DIR,
+    apply_plot_style,
     ensure_dirs,
     get_connection,
     human_int,
@@ -97,9 +98,8 @@ from common import (  # noqa: E402
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-# 中文图表标签（Windows 自带 SimHei / Microsoft YaHei）
-plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
-plt.rcParams["axes.unicode_minus"] = False
+# 统一绘图风格：中文字体 + 与前端一致的纸面/墨色/深绯配色（见 common.apply_plot_style）
+apply_plot_style()
 
 # RF 训练上限：毕设阶段够用，且笔记本上可控时间
 RF_PARAMS = dict(
@@ -345,6 +345,13 @@ def plot_pr_curves(curves: dict[tuple[str, str], tuple[np.ndarray, np.ndarray, f
 
 def plot_confusion_matrices(results: list[dict], path: Path) -> None:
     """只画 test 集、默认阈值的结果，3 组 × 2 模型。"""
+    from matplotlib.colors import LinearSegmentedColormap
+
+    # 用"纸面 → 深绯"的自定义色阶，而不是 matplotlib 自带的 Blues：
+    # Blues 的深蓝和界面的暖纸色完全不在一个调子上。
+    cmap = LinearSegmentedColormap.from_list(
+        "paper_crimson", ["#FAF8F4", "#E8CFC9", "#B87A78", "#8E2233"])
+
     sel = [r for r in results if r["split"] == "test" and r["threshold_mode"] == "default_0.5"]
     if not sel:
         return
@@ -355,11 +362,12 @@ def plot_confusion_matrices(results: list[dict], path: Path) -> None:
     axes = np.atleast_1d(axes).ravel()
     for ax, r in zip(axes, sel):
         cm = np.array([[r["tn"], r["fp"]], [r["fn"], r["tp"]]])
-        ax.imshow(cm, cmap="Blues")
+        ax.imshow(cm, cmap=cmap)
         for i in range(2):
             for j in range(2):
                 ax.text(j, i, f"{cm[i, j]:,}", ha="center", va="center",
-                        color="white" if cm[i, j] > cm.max() / 2 else "black", fontsize=10)
+                        color="white" if cm[i, j] > cm.max() * 0.62 else "#1C1A17",
+                        fontsize=10)
         ax.set_xticks([0, 1], ["预测 licit", "预测 illicit"], fontsize=8)
         ax.set_yticks([0, 1], ["实际 licit", "实际 illicit"], fontsize=8)
         ax.set_title(f"{r['exp_group']} + {r['model']}\n"

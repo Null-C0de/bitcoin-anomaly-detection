@@ -92,6 +92,7 @@ from common import (  # noqa: E402
     POS_LABEL,
     RANDOM_STATE,
     TABLE_DIR,
+    apply_plot_style,
     ensure_dirs,
     get_connection,
     human_int,
@@ -100,8 +101,8 @@ from common import (  # noqa: E402
 
 warnings.filterwarnings("ignore")
 
-plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
-plt.rcParams["axes.unicode_minus"] = False
+# 统一绘图风格：中文字体 + 与前端一致的纸面/墨色/深绯配色（见 common.apply_plot_style）
+apply_plot_style()
 
 # 特征中文名（用于图表可读性；未列出的回退为原名）
 FEATURE_CN = {

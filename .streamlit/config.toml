@@ -1,0 +1,50 @@
+# =============================================================================
+# Streamlit 主题配置
+#
+# 【配色逻辑】
+# 不用 Streamlit 默认的红白灰，而是一套"学术期刊"式的暖色调：
+#   paper   #FAF8F4  纸面底色，略带暖黄，不是纯白（纯白在长文档里刺眼）
+#   paper-2 #F2EEE4  次级面（侧边栏、代码块），比纸面深一档
+#   ink     #1C1A17  墨色正文，不是纯黑（纯黑对比过硬）
+#   rule    #D9D2C3  分隔线，足够淡，只用来划层次
+#   crimson #8E2233  唯一强调色。选深绯而不是亮红：亮红像报错，
+#                    深绯既有警示意味又不刺眼，且与"illicit/风险"的语义一致
+#
+# 【字体逻辑】
+# 标题走衬线体（serif），正文走无衬线体（sans）——这是学术出版物的经典搭配，
+# 也是最不容易被误认成"AI 快速生成"的做法。
+# 注意：这里只用系统通用族名（serif / sans-serif），不引用 Google Fonts。
+# 原因是答辩现场可能没有外网，Web 字体加载失败会让排版直接塌掉。
+# 具体的字体栈在 src/streamlit_app.py 的 CSS 里用系统字体精确指定。
+#
+# 【圆角】small = 0.25rem。默认的 8px 圆角太"产品化"，近直角更像印刷品。
+# =============================================================================
+
+[theme]
+base = "light"
+
+primaryColor = "#8E2233"
+backgroundColor = "#FAF8F4"
+secondaryBackgroundColor = "#F2EEE4"
+textColor = "#1C1A17"
+borderColor = "#D9D2C3"
+
+font = "sans-serif"
+headingFont = "serif"
+
+baseRadius = "small"
+buttonRadius = "small"
+
+linkColor = "#8E2233"
+codeBackgroundColor = "#F2EEE4"
+
+# 图表分类色：与"墨 + 绯 + 砂"同一色系，避免出现和界面打架的亮色。
+# 注意这只影响 Streamlit 原生图表（Plotly/Altair/Vega），
+# 本项目里 matplotlib 生成的 PNG 需要在 common.py 里单独配 rcParams。
+chartCategoricalColors = [
+  "#8E2233", "#3F5C6B", "#A8853F", "#5C6B4A",
+  "#6E4B5E", "#9C6238", "#4A5563", "#8A7B63",
+]
+
+[theme.sidebar]
+backgroundColor = "#F2EEE4"

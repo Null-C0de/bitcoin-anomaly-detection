@@ -53,6 +53,7 @@ import streamlit.components.v1 as components
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from common import (  # noqa: E402
+    apply_plot_style,
     DB_PATH,
     FIGURE_DIR,
     MODEL_DIR,
@@ -75,14 +76,191 @@ DISCLAIMER = ("风险评分仅为模型统计推断，不等同于违法认定�
 def _score_to_color(score: float, thr: float) -> str:
     """把风险评分映射到蓝→红渐变色（低风险偏蓝、高风险偏红）。"""
     t = min(max(score / max(thr, 1e-6), 0.0), 1.0)
-    r = int(41 + (192 - 41) * t)
-    g = int(128 + (57 - 128) * t)
-    b = int(185 + (43 - 185) * t)
+    # 低风险 = 石板蓝 #3F5C6B，高风险 = 深绯 #8E2233（与界面同一套色）
+    r = int(0x3F + (0x8E - 0x3F) * t)
+    g = int(0x5C + (0x22 - 0x5C) * t)
+    b = int(0x6B + (0x33 - 0x6B) * t)
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
-st.set_page_config(page_title="比特币异常交易识别系统", page_icon="🔍",
+st.set_page_config(page_title="比特币异常交易识别系统", page_icon="₿",
                    layout="wide", initial_sidebar_state="expanded")
+
+
+# ============================================================
+# 视觉样式：学术期刊风
+#
+# 【为什么这么做】
+# 默认样式的问题不是"不好看"，而是"看不出设计决策"：
+# 纯白底 + Streamlit 默认红 + 满屏 emoji，任何 Streamlit 应用都长这样，
+# 评审看不出有人的判断在里面。这里每处改动都有明确理由：
+#
+#   1) 去掉全部 emoji。emoji 在正式文档里等于"随手贴的图标"，
+#      而且不同系统渲染差异大，投屏时尤其难看。
+#   2) 标题用衬线体、正文用无衬线体 —— 学术出版物的标准搭配。
+#   3) 指标不用 st.metric 卡片，改成"数字 + 细线"的统计条：
+#      四张卡片并排是仪表盘模板感最重的地方。
+#   4) 唯一强调色（深绯）只给主指标和选中态，其余一律墨色/灰。
+#      颜色越少，用起来越有分量。
+#   5) 收窄正文最大宽度到 1180px。宽屏下长行（>100 字符）阅读时会丢行。
+#
+# 字体全部用系统字体栈，不引任何网络字体 —— 答辩现场可能没外网。
+# ============================================================
+PAPER = "#FAF8F4"
+INK = "#1C1A17"
+INK_SOFT = "#5C554C"
+RULE = "#D9D2C3"
+CRIMSON = "#8E2233"
+
+_FONT_SANS = ('"Segoe UI", "Microsoft YaHei", "PingFang SC", '
+              '"Hiragino Sans GB", system-ui, -apple-system, sans-serif')
+_FONT_SERIF = ('Georgia, "Times New Roman", "Songti SC", '
+               '"Source Han Serif SC", "Noto Serif CJK SC", "SimSun", serif')
+
+st.markdown(f"""
+<style>
+  /* ---------- 字体 ---------- */
+  html, body, .stApp, .stMarkdown, [data-testid="stWidgetLabel"],
+  button, input, select, textarea {{
+      font-family: {_FONT_SANS} !important;
+  }}
+  h1, h2, h3, h4, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {{
+      font-family: {_FONT_SERIF} !important;
+      letter-spacing: -0.01em;
+      color: {INK};
+  }}
+
+  /* ---------- 版心 ---------- */
+  .block-container {{
+      max-width: 1180px;
+      padding-top: 1.6rem;
+      padding-bottom: 3rem;
+  }}
+  header[data-testid="stHeader"] {{ background: transparent; }}
+
+  /* ---------- 页头 ---------- */
+  .masthead {{
+      border-bottom: 1px solid {RULE};
+      padding-bottom: 0.9rem;
+      margin-bottom: 1.5rem;
+  }}
+  .masthead .kicker {{
+      font-size: 0.66rem;
+      letter-spacing: 0.19em;
+      text-transform: uppercase;
+      color: {INK_SOFT};
+      margin-bottom: 0.45rem;
+  }}
+  .masthead .title {{
+      font-family: {_FONT_SERIF};
+      font-size: 2.0rem;
+      font-weight: 700;
+      line-height: 1.15;
+      color: {INK};
+      margin: 0 0 0.4rem 0;
+  }}
+  .masthead .sub {{
+      font-size: 0.83rem;
+      color: {INK_SOFT};
+      line-height: 1.6;
+  }}
+
+  /* ---------- 统计条（替代 st.metric 卡片）---------- */
+  .statrow {{
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border-top: 1px solid {RULE};
+      border-bottom: 1px solid {RULE};
+      margin: 0.3rem 0 1.4rem 0;
+  }}
+  .stat {{
+      padding: 0.85rem 1rem 0.8rem 1.05rem;
+      border-left: 1px solid {RULE};
+  }}
+  .stat:first-child {{ border-left: 0; padding-left: 0; }}
+  .stat .lab {{
+      font-size: 0.63rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: {INK_SOFT};
+      margin-bottom: 0.4rem;
+      white-space: nowrap;
+  }}
+  .stat .val {{
+      font-family: {_FONT_SERIF};
+      font-size: 1.68rem;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      color: {INK};
+  }}
+  .stat .val.accent {{ color: {CRIMSON}; }}
+
+  /* ---------- 页签：细下划线，不要色块 ---------- */
+  [data-baseweb="tab-list"] {{
+      gap: 1.7rem;
+      border-bottom: 1px solid {RULE};
+  }}
+  [data-baseweb="tab"] {{
+      padding: 0.5rem 0 0.6rem 0;
+      font-size: 0.9rem;
+      letter-spacing: 0.03em;
+  }}
+  [data-baseweb="tab-highlight"] {{
+      background: {CRIMSON};
+      height: 2px;
+  }}
+
+  /* ---------- 表格与图 ---------- */
+  [data-testid="stDataFrame"] {{ border: 1px solid {RULE}; }}
+  [data-testid="stImage"] img {{ border: 1px solid {RULE}; }}
+
+  /* ---------- 侧边栏 ---------- */
+  [data-testid="stSidebar"] {{ border-right: 1px solid {RULE}; }}
+  [data-testid="stSidebar"] .stMarkdown p {{ font-size: 0.84rem; }}
+  .side-label {{
+      font-size: 0.63rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: {INK_SOFT};
+      margin: 0.2rem 0 0.5rem 0;
+  }}
+
+  /* 提示条：Streamlit 默认的亮绿/亮蓝底和暖纸色冲突。
+     统一改成"纸色底 + 左侧 3px 语义色条"，既保留 info/success/warn/error
+     的区分，又不会在页面上炸出一块荧光色。 */
+  [data-testid="stAlertContainer"] {{
+      border-radius: 2px !important;
+      border: 1px solid {RULE};
+      border-left: 3px solid {INK_SOFT};
+      background: {PAPER} !important;
+      box-shadow: none !important;
+  }}
+  [data-testid="stAlertContainer"]:has([data-testid="stAlertContentSuccess"]) {{
+      border-left-color: #5C6B4A; background: #F1F0E3 !important;
+  }}
+  [data-testid="stAlertContainer"]:has([data-testid="stAlertContentInfo"]) {{
+      border-left-color: #3F5C6B; background: #F0EEE8 !important;
+  }}
+  [data-testid="stAlertContainer"]:has([data-testid="stAlertContentWarning"]) {{
+      border-left-color: #A8853F; background: #F7EFDF !important;
+  }}
+  [data-testid="stAlertContainer"]:has([data-testid="stAlertContentError"]) {{
+      border-left-color: {CRIMSON}; background: #F6E7E5 !important;
+  }}
+</style>
+""", unsafe_allow_html=True)
+
+
+def render_stat_row(items: list[tuple[str, str, bool]], cols: int | None = None) -> None:
+    """渲染统计条。items = [(标签, 数值, 是否用强调色), ...]"""
+    n = cols or len(items)
+    cells = "".join(
+        f'<div class="stat"><div class="lab">{lab}</div>'
+        f'<div class="val{" accent" if accent else ""}">{val}</div></div>'
+        for lab, val, accent in items)
+    st.markdown(
+        f'<div class="statrow" style="grid-template-columns:repeat({n},1fr)">'
+        f'{cells}</div>', unsafe_allow_html=True)
 
 
 # ============================================================
@@ -202,31 +380,16 @@ def fetch_subgraph(_mtime: float, target: int, hops: int, max_nodes: int) -> dic
 
 
 # ============================================================
-# 侧边栏
+# 页头 + 侧边栏
 # ============================================================
-st.title("🔍 比特币异常交易识别系统")
-st.caption("基于图特征与机器学习 · Elliptic Bitcoin Dataset · "
-           "仅用于学术研究，评分不构成违法认定")
-
-with st.sidebar:
-    st.header("⚙️ 控制面板")
-    st.write(f"数据库：`{DB_PATH.name}`")
-    if DB_PATH.exists():
-        size_mb = DB_PATH.stat().st_size / 1024 / 1024
-        st.write(f"大小：{size_mb:,.1f} MB")
-        st.write(f"更新时间：{time.strftime('%Y-%m-%d %H:%M', time.localtime(db_mtime()))}")
-    else:
-        st.error("数据库不存在，请先运行 `python src/load_data.py`")
-
-    if st.button("🔄 清空缓存并刷新"):
-        st.cache_data.clear()
-        st.cache_resource.clear()
-        st.rerun()
-
-    st.divider()
-    st.caption("🔒 界面不展示测试集标签" if not EXPOSE_LABELS
-               else "⚠️ 已开启标签显示（仅限内部调试 DSH_EXPOSE_LABELS=1）")
-    st.caption(f"局部图节点上限：{MAX_SUBGRAPH_NODES}")
+st.markdown("""
+<div class="masthead">
+  <div class="kicker">Elliptic Bitcoin Dataset &nbsp;·&nbsp; Graph Features &amp; Machine Learning</div>
+  <div class="title">比特币异常交易识别系统</div>
+  <div class="sub">按时间步严格划分的离线训练 / 在线推理系统　·　
+      风险评分仅为统计推断，不等同于违法认定，须人工复核</div>
+</div>
+""", unsafe_allow_html=True)
 
 exp_df = load_experiments(db_mtime())
 if exp_df.empty:
@@ -240,36 +403,72 @@ best = TEST_DEFAULT.sort_values("pr_auc", ascending=False).iloc[0]
 best_group, best_model = best["exp_group"], best["model"]
 
 with st.sidebar:
+    st.markdown('<div class="side-label">数据源</div>', unsafe_allow_html=True)
+    if DB_PATH.exists():
+        size_mb = DB_PATH.stat().st_size / 1024 / 1024
+        st.markdown(
+            f"`{DB_PATH.name}`　{size_mb:,.1f} MB  \n"
+            f"<span style='color:{INK_SOFT};font-size:0.78rem'>"
+            f"更新于 {time.strftime('%Y-%m-%d %H:%M', time.localtime(db_mtime()))}"
+            f"</span>", unsafe_allow_html=True)
+    else:
+        st.error("数据库不存在，请先运行 `python src/load_data.py`")
+
+    if st.button("清空缓存并刷新", width="stretch"):
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        st.rerun()
+
     st.divider()
-    st.subheader("模型选择")
+    st.markdown('<div class="side-label">当前选择</div>', unsafe_allow_html=True)
     groups = sorted(TEST_DEFAULT["exp_group"].unique())
     models = sorted(TEST_DEFAULT["model"].unique())
-    sel_group = st.selectbox("特征组", groups, index=groups.index(best_group))
-    sel_model = st.selectbox("模型", models, index=models.index(best_model))
-    st.caption(f"自动推荐：{best_group} + {best_model}（PR-AUC={best['pr_auc']:.4f}）")
+    sel_group = st.selectbox("特征组", groups,
+                             index=groups.index(best_group))
+    sel_model = st.selectbox("模型", models,
+                             index=models.index(best_model))
+    st.caption(f"推荐：{best_group} + {best_model}"
+               f"（PR-AUC {best['pr_auc']:.4f}）")
+
+    st.divider()
+    st.markdown('<div class="side-label">约束</div>', unsafe_allow_html=True)
+    st.markdown(
+        f"<span style='color:{INK_SOFT};font-size:0.78rem;line-height:1.9'>"
+        f"界面不展示测试集标签<br>"
+        f"局部图节点上限 {MAX_SUBGRAPH_NODES}<br>"
+        f"图特征仅用可观测历史</span>"
+        if not EXPOSE_LABELS else
+        "<span style='color:#8E2233;font-size:0.78rem'>"
+        "注意：已开启标签显示（仅限内部调试 DSH_EXPOSE_LABELS=1）</span>",
+        unsafe_allow_html=True)
 
 sel_row = TEST_DEFAULT[(TEST_DEFAULT["exp_group"] == sel_group) &
                        (TEST_DEFAULT["model"] == sel_model)].iloc[0]
 threshold = float(sel_row["threshold"])
 
 tab_cmp, tab_top, tab_graph, tab_err = st.tabs(
-    ["📊 模型对比", "🚨 Top-K 风险", "🕸️ 局部图", "🔎 误报漏报"])
+    ["模型对比", "Top-K 风险", "局部图", "误报漏报"])
 
 # ============================================================
 # 页签1：模型对比
 # ============================================================
 with tab_cmp:
-    st.subheader("模型对比实验（测试集 35-49，正类 = illicit）")
+    st.markdown(
+        "<p style='font-size:0.8rem;color:%s;margin-bottom:0.9rem'>"
+        "测试集（时间步 35–49）　·　正类 = illicit　·　阈值 0.5</p>" % INK_SOFT,
+        unsafe_allow_html=True)
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("PR-AUC", f"{sel_row['pr_auc']:.4f}",
-              help="主指标。不平衡数据下比 accuracy 有意义得多")
-    c2.metric("F1", f"{sel_row['f1']:.4f}")
-    c3.metric("Recall（召回率）", f"{sel_row['recall']:.4f}")
-    c4.metric("Precision（精确率）", f"{sel_row['precision']:.4f}")
+    render_stat_row([
+        ("PR-AUC", f"{sel_row['pr_auc']:.4f}", True),
+        ("F1", f"{sel_row['f1']:.4f}", False),
+        ("召回率 Recall", f"{sel_row['recall']:.4f}", False),
+        ("精确率 Precision", f"{sel_row['precision']:.4f}", False),
+    ])
 
-    st.caption(f"当前选中：**{sel_group} + {sel_model}**　"
-               f"（{int(sel_row['n_features'])} 个特征，判定阈值 {threshold:.3f}）")
+    st.caption(f"{sel_group} + {sel_model}　·　"
+               f"{int(sel_row['n_features'])} 个特征　·　"
+               f"判定阈值 {threshold:.3f}　·　"
+               f"PR-AUC 为主指标（不平衡数据下比 accuracy 有意义）")
 
     # 汇总表：test + 默认阈值
     show = TEST_DEFAULT.sort_values("pr_auc", ascending=False)[
@@ -279,10 +478,10 @@ with tab_cmp:
                     "PR-AUC", "ROC-AUC", "TN", "FP", "FN", "TP"]
     st.dataframe(
         show.style.format({c: "{:.4f}" for c in ["精确率", "召回率", "F1", "PR-AUC", "ROC-AUC"]})
-        .highlight_max(subset=["F1", "PR-AUC"], color="#d4efdf"),
+        .highlight_max(subset=["F1", "PR-AUC"], color="#EFE3D7"),
         width="stretch", hide_index=True)
 
-    st.caption("绿色为该列最优。A=纯局部特征 f1–f94；B=A+结构图特征；"
+    st.caption("底色为该列最优。A=纯局部特征 f1–f94；B=A+结构图特征；"
                "C=官方全量 f1–f165。")
 
     col1, col2 = st.columns(2)
@@ -326,7 +525,7 @@ with tab_cmp:
 # ============================================================
 with tab_top:
     st.subheader("未标注交易的风险排序")
-    st.caption("unknown 交易不参与训练与指标计算，这里只做**推理打分**并排序。")
+    st.caption("unknown 交易不参与训练与指标计算，这里只做推理打分并按分数排序。")
 
     col_a, col_b = st.columns([1, 3])
     with col_a:
@@ -336,20 +535,21 @@ with tab_top:
         st.warning("没有可打分的未标注交易。")
     else:
         hi = int((ranks["risk_score"] >= threshold).sum())
-        c1, c2, c3 = st.columns(3)
-        c1.metric("未标注交易总数", human_int(len(ranks)))
-        c2.metric(f"评分 ≥ 阈值({threshold:.3f})", human_int(hi),
-                  help="超过判定阈值的交易数量，可视为模型认为的“可疑”规模")
-        c3.metric("最高风险评分", f"{ranks['risk_score'].max():.4f}")
+        render_stat_row([
+            ("未标注交易总数", human_int(len(ranks)), False),
+            (f"评分 ≥ 阈值 {threshold:.3f}", human_int(hi), True),
+            ("最高风险评分", f"{ranks['risk_score'].max():.4f}", False),
+        ])
 
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
-        plt.rcParams["axes.unicode_minus"] = False
+        # 与 pipeline 脚本共用同一套绘图风格（纸面/墨色/深绯）
+        apply_plot_style()
         fig, ax = plt.subplots(figsize=(9, 2.8))
-        ax.hist(ranks["risk_score"], bins=60, color="#5dade2", edgecolor="none")
-        ax.axvline(threshold, color="#c0392b", ls="--", lw=1.5,
+        ax.hist(ranks["risk_score"], bins=60,
+                color="#8E2233", alpha=0.72, edgecolor=PAPER, linewidth=0.4)
+        ax.axvline(threshold, color=INK, ls="--", lw=1.2,
                    label=f"判定阈值 {threshold:.3f}")
         ax.set_xlabel("风险评分 P(illicit)")
         ax.set_ylabel("交易数")
@@ -362,14 +562,14 @@ with tab_top:
         top.insert(0, "排名", range(1, len(top) + 1))
         top["风险级别"] = pd.cut(
             top["risk_score"], bins=[-1, threshold * 0.5, threshold, max(0.8, threshold), 1.01],
-            labels=["minimal", "low", "medium", "high"])
+            labels=["极低", "低", "中", "高"])
         top = top.rename(columns={"tx_id": "交易ID", "time_step": "时间步",
                                   "risk_score": "风险评分"})
         st.dataframe(top[["排名", "交易ID", "时间步", "风险评分", "风险级别"]]
                      .style.format({"风险评分": "{:.6f}"}),
                      width="stretch", hide_index=True, height=420)
 
-        st.download_button("⬇️ 导出当前 Top-K (CSV)",
+        st.download_button("导出当前 Top-K（CSV）",
                            top.to_csv(index=False).encode("utf-8-sig"),
                            file_name=f"top_risk_{sel_group}_{sel_model}.csv",
                            mime="text/csv")
@@ -393,17 +593,19 @@ with tab_graph:
     with col_c:
         max_nodes = st.selectbox("最大节点数", [20, 35, 50], index=2)
 
-    if st.button("🔍 生成局部图", type="primary") or tx_input:
+    if st.button("生成局部图", type="primary") or tx_input:
         sg = fetch_subgraph(db_mtime(), int(tx_input), int(hops), int(max_nodes))
         if "error" in sg:
             st.error(sg["error"])
         else:
             nodes, edges = sg["nodes"], sg["edges"]
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("返回节点数", len(nodes))
-            c2.metric("返回边数", len(edges))
-            c3.metric("目标时间步", sg["t_target"])
-            c4.metric("是否截断", "是" if sg["truncated"] else "否")
+            render_stat_row([
+                ("返回节点数", str(len(nodes)), False),
+                ("返回边数", str(len(edges)), False),
+                ("目标时间步", str(sg["t_target"]), False),
+                ("是否截断", "是" if sg["truncated"] else "否",
+                 bool(sg["truncated"])),
+            ])
             if sg["truncated"]:
                 st.warning(f"邻域超过 {max_nodes} 个节点，已截断。"
                            f"这是硬约束 5 要求的展示上限。")
@@ -425,9 +627,67 @@ with tab_graph:
 
             from pyvis.network import Network
             net = Network(height="620px", width="100%", directed=True,
-                          bgcolor="#ffffff", font_color="#222222",
+                          bgcolor=PAPER, font_color=INK,
                           cdn_resources="in_line")   # 内联 JS，离线也能渲染
-            net.barnes_hut(gravity=-8000, central_gravity=0.3, spring_length=140)
+
+            # ------------------------------------------------------------
+            # 确定性布局：按"跳数"分同心环
+            #
+            # 为什么不用力导向（barnes_hut）？
+            # 实测两个问题：1) 子图里大量节点彼此不连通，重力把它们全压到
+            # 圆心重叠成一个圆；2) 每次刷新位置都不同，答辩演示时截图对不上。
+            # 改成按 BFS 跳数分环后：目标恒在圆心、一跳在内环、二跳在外环，
+            # 既稳定又直接表达了"这是几跳邻域"。
+            # ------------------------------------------------------------
+            import math
+
+            adj: dict[int, set[int]] = {int(n["tx_id"]): set() for _, n in nodes.iterrows()}
+            for _, e in edges.iterrows():
+                s_, d_ = int(e["src"]), int(e["dst"])
+                adj.setdefault(s_, set()).add(d_)
+                adj.setdefault(d_, set()).add(s_)
+
+            hop_of: dict[int, int] = {int(tx_input): 0}
+            frontier = [int(tx_input)]
+            while frontier:
+                nxt = []
+                for u in frontier:
+                    for v in adj.get(u, ()):
+                        if v not in hop_of:
+                            hop_of[v] = hop_of[u] + 1
+                            nxt.append(v)
+                frontier = nxt
+
+            # 与目标不连通的孤立节点统一放到最外环
+            max_hop = max(hop_of.values()) if hop_of else 0
+            for tid in adj:
+                hop_of.setdefault(tid, max_hop + 1)
+
+            by_hop: dict[int, list[int]] = {}
+            for tid, h in hop_of.items():
+                by_hop.setdefault(h, []).append(tid)
+
+            pos: dict[int, tuple[float, float]] = {}
+            for h, ids in sorted(by_hop.items()):
+                r = 0.0 if h == 0 else 165 + 115 * (h - 1)
+                for i, tid in enumerate(sorted(ids)):
+                    ang = 2 * math.pi * i / max(len(ids), 1)
+                    pos[tid] = (r * math.cos(ang), r * math.sin(ang))
+
+            # 画布约 850x640，vis 默认视口以 (0,0) 为中心、缩放为 1，
+            # 半径超过约 240 就会超出上下边界被裁掉。这里等比缩到 230 以内，
+            # 保证不依赖 JS 的 fit() 也能完整显示（fit 在 iframe 里不一定生效）。
+            max_r = max((math.hypot(x, y) for x, y in pos.values()), default=0.0)
+            if max_r > 230:
+                k = 230.0 / max_r
+                pos = {tid: (x * k, y * k) for tid, (x, y) in pos.items()}
+
+            # 关闭物理引擎：位置已由上面算好，不要让它再抖动
+            # 注意：physics 必须写成 {"enabled": false} 而不是 false。
+            # pyvis 的 generate_html 里有 `'enabled' in self.options['physics']`，
+            # 给成布尔值会抛 TypeError: argument of type 'bool' is not iterable。
+            net.set_options('{"physics":{"enabled":false},'
+                            '"interaction":{"hover":true,"tooltipDelay":120}}')
 
             max_ts = max(int(nodes["time_step"].max()), 1)
             for _, n in nodes.iterrows():
@@ -436,7 +696,7 @@ with tab_graph:
                 score = node_scores.get(tx)
                 # 颜色：目标=金色；未知交易按评分从蓝(低)到红(高)；有标签的按类别
                 if is_target:
-                    color, size = "#f1c40f", 34
+                    color, size = "#B8901F", 30
                 elif score is not None:
                     color = _score_to_color(score, threshold)
                     size = 16 + 22 * min(max(score, 0.0), 1.0)
@@ -444,20 +704,43 @@ with tab_graph:
                     label = int(n["label"]) if pd.notna(n["label"]) else None
                     # 注意：这里用标签仅为*上色区分 unknown/illicit/licit 结构*，
                     # 界面文字不展示标签数值；如需完全关闭，见 DSH_EXPOSE_LABELS 说明。
-                    color = "#7f8c8d" if label is None else ("#c0392b" if label == 1 else "#2980b9")
+                    color = "#8A8578" if label is None else ("#8E2233" if label == 1 else "#3F5C6B")
                     size = 12
                 # 透明度按时间步：越晚越实，体现时间演进
                 alpha = 0.35 + 0.65 * (int(n["time_step"]) / max_ts)
                 title = (f"tx_id: {tx}\n时间步: {int(n['time_step'])}"
                          + (f"\n风险评分: {score:.4f}" if score is not None else "")
                          + ("\n★ 目标交易" if is_target else ""))
+                px, py = pos.get(tx, (0.0, 0.0))
                 net.add_node(tx, label=str(tx), title=title, color=color, size=size,
+                             x=px, y=py, physics=False,
                              borderWidth=3 if is_target else 1)
 
             for _, e in edges.iterrows():
-                net.add_edge(int(e["src"]), int(e["dst"]), color="#c8c8c8", width=1)
+                net.add_edge(int(e["src"]), int(e["dst"]), color="#D9D2C3", width=1)
 
             html = net.generate_html()
+            # 位置固定后再 fit 一次，保证所有节点（含圆心目标）都在视野内。
+            # 物理已关闭，fit 结果每次一致，截图可复现。
+            # 【为什么不能只用 setTimeout】
+            # Streamlit 会把所有页签都渲染出来，非当前页签的 iframe 处于隐藏状态。
+            # Chrome 对隐藏 iframe 里的 setTimeout 有强节流（可低至 1 分钟一次），
+            # 所以定时器方案在切到这个页签之前根本不会触发。
+            # 改用 IntersectionObserver：iframe 真正可见时才 fit。再挂一个 resize
+            # 兜底，保证窗口缩放后仍然居中。
+            html = html.replace(
+                "</body>",
+                "<script>"
+                "function fitNow(){try{network.fit({animation:false});}catch(e){}}"
+                "try{"
+                "  new IntersectionObserver(function(es){"
+                "    es.forEach(function(e){ if(e.isIntersecting) fitNow(); });"
+                "  },{threshold:0.15}).observe(document.body);"
+                "}catch(e){}"
+                "window.addEventListener('resize', function(){setTimeout(fitNow,120);});"
+                "setTimeout(fitNow,600);"
+                "</script></body>")
+
             # 用 tempfile 保证每次渲染到独立文件，避免 Streamlit 缓存旧 HTML
             with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False,
                                              encoding="utf-8") as f:
@@ -465,8 +748,14 @@ with tab_graph:
                 tmp_path = f.name
             components.html(open(tmp_path, encoding="utf-8").read(), height=640)
 
-            st.caption("节点颜色：🟡 目标交易　🔴 高风险　🔵 低风险　"
-                       "灰色 无评分的已标注交易。节点大小与风险评分正相关。")
+            st.markdown(
+                "<span style='font-size:0.8rem;color:%s'>节点颜色："
+                "<span style='color:#B8901F'>●</span> 目标交易　"
+                "<span style='color:#8E2233'>●</span> 高风险　"
+                "<span style='color:#3F5C6B'>●</span> 低风险　"
+                "<span style='color:#8A8578'>●</span> 无评分<br>"
+                "节点大小与风险评分正相关。</span>" % INK_SOFT,
+                unsafe_allow_html=True)
 
             with st.expander("查看节点明细 / 边列表"):
                 st.dataframe(nodes.rename(columns={"tx_id": "交易ID",
@@ -491,9 +780,10 @@ with tab_err:
     else:
         st.caption("**FN（漏报）** = 真实非法被判为合法，风控代价最高；"
                    "**FP（误报）** = 真实合法被判为非法，会打扰正常用户。")
-        c1, c2 = st.columns(2)
-        c1.metric("漏报 FN", int((err["case_type"] == "FN").sum()))
-        c2.metric("误报 FP", int((err["case_type"] == "FP").sum()))
+        render_stat_row([
+            ("漏报 FN", str(int((err["case_type"] == "FN").sum())), True),
+            ("误报 FP", str(int((err["case_type"] == "FP").sum())), False),
+        ])
 
         show = err[["case_type", "tx_id", "time_step", "y_true", "y_proba"]].copy()
         show.columns = ["类型", "交易ID", "时间步", "真实标签", "模型评分"]
@@ -506,7 +796,7 @@ with tab_err:
         # 每个案例的 SHAP Top 特征
         st.markdown("**各案例的 SHAP Top-5 特征贡献**")
         for _, r in err.iterrows():
-            tag = "🔴 漏报 FN" if r["case_type"] == "FN" else "🟠 误报 FP"
+            tag = "漏报 FN" if r["case_type"] == "FN" else "误报 FP"
             with st.expander(f"{tag} · tx {int(r['tx_id'])} · "
                              f"t={int(r['time_step'])} · 评分 {r['y_proba']:.4f}"):
                 if not r.get("shap_json"):
@@ -531,7 +821,7 @@ with tab_err:
             st.image(str(p), width="stretch")
 
 st.divider()
-st.caption("⚠️ **伦理与合规声明**：本系统仅用于学术研究。"
+st.caption("**伦理与合规声明**：本系统仅用于学术研究。"
            "模型输出是基于历史数据的统计推断，受训练数据偏差影响，"
            "**不等同于违法认定**，不可直接用于执法或对个人/机构的定性。"
            "数据集中的标签来自 Elliptic 官方标注，存在未知比例的噪声。")

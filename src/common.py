@@ -147,6 +147,73 @@ MAX_SCORE_BATCH: int = 1000     # /score 单次请求上限
 SUBGRAPH_HOPS: int = 2          # /subgraph 默认跳数
 
 # ============================================================
+# 六点五、统一绘图风格
+#
+# 目的：让脚本生成的 PNG 和 Streamlit 界面是同一套视觉语言。
+# 不配这个的话，matplotlib 会用它自带的 tab10（亮蓝/亮橙/亮绿），
+# 嵌进暖纸色界面里会非常刺眼，一眼就能看出"图是别处生成的"。
+#
+# 配色与 .streamlit/config.toml 保持一致：
+#   纸面 #FAF8F4 / 墨色 #1C1A17 / 灰 #5C554C / 细线 #D9D2C3 / 深绯 #8E2233
+# ============================================================
+PLOT_PAPER = "#FAF8F4"
+PLOT_INK = "#1C1A17"
+PLOT_SOFT = "#5C554C"
+PLOT_RULE = "#D9D2C3"
+PLOT_ACCENT = "#8E2233"
+
+# 分类色：以"墨 + 绯 + 砂"为主的低饱和序列，6 条曲线也能彼此区分
+PLOT_COLORS: list[str] = [
+    "#8E2233",  # 深绯（主）
+    "#3F5C6B",  # 石板蓝
+    "#A8853F",  # 赭
+    "#5C6B4A",  # 橄榄
+    "#6E4B5E",  # 紫褐
+    "#9C6238",  # 陶
+    "#4A5563",  # 石墨
+    "#8A7B63",  # 砂
+]
+
+
+def apply_plot_style() -> None:
+    """把 matplotlib 调成与前端一致的视觉风格。各模块画图前调用一次。"""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    plt.rcParams.update({
+        "font.sans-serif": ["Microsoft YaHei", "SimHei", "DejaVu Sans"],
+        "font.family": "sans-serif",
+        "axes.unicode_minus": False,
+        "figure.facecolor": PLOT_PAPER,
+        "axes.facecolor": PLOT_PAPER,
+        "savefig.facecolor": PLOT_PAPER,
+        "text.color": PLOT_INK,
+        "axes.labelcolor": PLOT_INK,
+        "axes.edgecolor": PLOT_RULE,
+        "axes.linewidth": 0.9,
+        "xtick.color": PLOT_SOFT,
+        "ytick.color": PLOT_SOFT,
+        "xtick.labelsize": 8.5,
+        "ytick.labelsize": 8.5,
+        "axes.labelsize": 9.5,
+        "axes.titlesize": 11,
+        "axes.titleweight": "bold",
+        "axes.grid": True,
+        "grid.color": PLOT_RULE,
+        "grid.linewidth": 0.6,
+        "grid.alpha": 0.55,
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "legend.frameon": False,
+        "legend.fontsize": 8,
+        "font.size": 9,
+        "figure.dpi": 150,
+        "lines.linewidth": 1.8,
+        "axes.prop_cycle": matplotlib.cycler(color=PLOT_COLORS),
+    })
+
+# ============================================================
 # 七、公共工具函数
 # ============================================================
 
