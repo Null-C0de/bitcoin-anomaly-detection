@@ -43,7 +43,7 @@ Data/elliptic_txs_classes.csv    # 标签：1=illicit, 2=licit, unknown
 ```
 BITCOIN/
 ├── Data/                     # 原始 CSV（不入库版本控制，见 .gitignore）
-├── Doc/                      # 需求文档
+├── Doc/                      # 本地文档（不入库版本控制，见 .gitignore）
 ├── src/                      # 全部源码
 │   ├── common.py             # 公共常量、路径、时间划分、特征组、SQL 工具
 │   ├── load_data.py          # 模块1：CSV → SQLite
@@ -184,13 +184,36 @@ python -m streamlit run src/streamlit_app.py
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/health` | 健康检查：当前模型、特征组、阈值、库路径 |
+| GET | `/health` | 健康检查：当前模型、特征组、阈值、库文件名、是否开启鉴权 |
 | POST | `/score` | 批量打分，请求体 `{"tx_ids":[...]}`，**单次 ≤ 1000 笔**（超出返回 413） |
 | GET | `/top_risk?k=20` | 未标注交易的风险 Top-K（首次调用会建缓存，之后毫秒级） |
 | GET | `/subgraph/{tx_id}?hops=2&max_nodes=50` | 局部交易图，**只含 `time_step ≤ 目标` 的节点**，`max_nodes` 上限 50 |
 | GET | `/stats` | 请求数、平均耗时、当前 / 峰值内存 |
 
 **实测性能**：1000 笔一次打分 **312 ms**（每笔约 0.31 ms），峰值内存 216 MB。
+
+### 8.1 接口鉴权（可选）
+
+默认**不鉴权**，方便本地演示。若要把服务暴露到本机以外，
+设置环境变量 `DSH_API_KEY` 即可对所有接口开启校验：
+
+```bash
+# 开启鉴权
+DSH_API_KEY='你要用的密钥' python -m uvicorn app:app --app-dir src --host 0.0.0.0 --port 8000
+
+# 调用时带上请求头
+curl -H "X-API-Key: 你要用的密钥" http://127.0.0.1:8000/health
+```
+
+未带或带错密钥一律返回 **401**，响应体不含任何密钥信息。
+实测：正确密钥 200；未带 / 错误密钥 401；5 个接口行为一致。
+
+实现要点（`src/app.py`）：
+
+- 用 `secrets.compare_digest()` 做**定长比较**，避免通过响应时间差逐字节猜密钥（timing attack）
+- 密钥只从环境变量读取，**不写进代码、不进仓库、不进日志**
+- "没带密钥"和"密钥错误"返回同一个 401 文案，不给攻击者探针信号
+- `/health` 只回数据库**文件名**而非绝对路径，避免泄漏服务器目录结构
 
 **关于测试集标签**：接口默认**不返回真实标签**（`label` 恒为 `null`），
 防止标签从 API 泄漏；仅当设置环境变量 `DSH_EXPOSE_LABELS=1` 时才返回，供内部调试。

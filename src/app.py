@@ -48,6 +48,7 @@ app.py —— 模块5：FastAPI 后端
 from __future__ import annotations
 
 import os
+import secrets
 import sqlite3
 import sys
 import threading
@@ -59,7 +60,7 @@ from typing import Any, Optional
 import joblib
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -79,6 +80,40 @@ from common import (  # noqa: E402
 
 DISCLAIMER = "风险评分仅为模型统计推断，不等同于违法认定，需人工复核。"
 EXPOSE_LABELS = os.environ.get("DSH_EXPOSE_LABELS", "0") == "1"
+
+# ============================================================
+# 接口鉴权（可选，默认关闭）
+# ============================================================
+# 设置环境变量 DSH_API_KEY 后，除根路径外的所有接口都必须带
+#   X-API-Key: <你的密钥>
+# 请求头，否则返回 401。未设置时保持本地开发体验不变（不校验）。
+#
+# 设计取舍：
+#  1) 用 secrets.compare_digest 做**定长比较**，避免通过响应时间差
+#     逐字节猜出密钥（timing attack）。普通的 == 会短路退出，
+#     攻击者可以用大量请求的耗时分布反推密钥前缀。
+#  2) 密钥只从环境变量读，**绝不写进代码或仓库**，也不会出现在日志里。
+#  3) 校验失败只回 "无效的 API Key"，不区分"没带"和"带错"，
+#     避免给攻击者提供密钥是否存在的信号。
+API_KEY = os.environ.get("DSH_API_KEY", "").strip()
+
+
+def require_api_key(x_api_key: Optional[str] = Header(default=None,
+                                                     alias="X-API-Key")) -> None:
+    """依赖项：配置了 DSH_API_KEY 时校验请求头。"""
+    if not API_KEY:                      # 未配置 = 本地开发模式，放行
+        return
+    if not x_api_key or not secrets.compare_digest(x_api_key, API_KEY):
+        raise HTTPException(
+            status_code=401,
+            detail="无效的 API Key",
+            headers={"WWW-Authenticate": "X-API-Key"},
+        )
+
+
+# 所有业务接口挂上鉴权依赖（未配置密钥时自动放行）
+AUTH = [Depends(require_api_key)]
+
 
 # 进程级资源统计（psutil 可选）
 try:
@@ -337,7 +372,7 @@ def close_thread_connections() -> None:
 # ============================================================
 # 接口
 # ============================================================
-@app.get("/health", summary="健康检查")
+@app.get("/health", summary="健康检查", dependencies=AUTH)
 def health() -> dict:
     return {
         "status": "ok" if STATE["bundle"] is not None else "loading",
@@ -345,13 +380,16 @@ def health() -> dict:
         "feature_group": STATE["group"],
         "n_features": len(STATE["features"]),
         "threshold": STATE["threshold"],
-        "db": str(DB_PATH),
+        # 只回文件名，不回绝对路径：绝对路径会泄漏服务器的
+        # 目录结构与用户名，属于无害但没必要的情报披露。
+        "db": DB_PATH.name,
+        "auth_required": bool(API_KEY),
         "labels_exposed": EXPOSE_LABELS,
         "disclaimer": DISCLAIMER,
     }
 
 
-@app.post("/score", response_model=ScoreResponse, summary="批量风险评分")
+@app.post("/score", response_model=ScoreResponse, summary="批量风险评分", dependencies=AUTH)
 def score(req: ScoreRequest) -> ScoreResponse:
     """
     输入 tx_id 列表，返回每笔交易的风险评分（P(illicit)）。
@@ -488,7 +526,8 @@ def ensure_risk_scores(conn, force: bool = False) -> str:
         conn2.close()
 
 
-@app.get("/top_risk", response_model=TopRiskResponse, summary="Top-K 高风险交易")
+@app.get("/top_risk", response_model=TopRiskResponse,
+         summary="Top-K 高风险交易", dependencies=AUTH)
 def top_risk(
     k: int = Query(20, ge=1, le=1000, description="返回条数"),
     scope: str = Query("unknown", pattern="^(unknown|all)$",
@@ -538,7 +577,8 @@ def top_risk(
         elapsed_ms=round(elapsed * 1000, 2), disclaimer=DISCLAIMER, results=results)
 
 
-@app.get("/subgraph/{tx_id}", response_model=SubgraphResponse, summary="局部交易图")
+@app.get("/subgraph/{tx_id}", response_model=SubgraphResponse,
+         summary="局部交易图", dependencies=AUTH)
 def subgraph(
     tx_id: int,
     hops: int = Query(SUBGRAPH_HOPS, ge=1, le=3, description="跳数，默认 2"),
@@ -633,7 +673,7 @@ def subgraph(
     )
 
 
-@app.get("/stats", summary="服务统计")
+@app.get("/stats", summary="服务统计", dependencies=AUTH)
 def stats() -> dict:
     n = STATE["n_requests"]
     return {

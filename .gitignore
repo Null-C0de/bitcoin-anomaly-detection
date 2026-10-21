@@ -14,6 +14,10 @@ Data/*.csv
 # ===== 模型与实验产物：由 src/train_compare.py 生成 =====
 outputs/
 
+# ===== 本地文档：仅自己保留，不对外发布 =====
+# Doc/ 下是需求原文与学习讲义，属于个人资料，不进公开仓库
+Doc/
+
 # ===== Python =====
 __pycache__/
 *.py[cod]
