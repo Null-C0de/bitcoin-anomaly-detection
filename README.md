@@ -52,6 +52,8 @@ BITCOIN/
 │   ├── error_analysis.py     # 模块4：误报漏报 + SHAP
 │   ├── app.py                # 模块5：FastAPI 推理服务
 │   └── streamlit_app.py      # 模块6：Streamlit 可视化前端
+├── run.py                    # 一键启动脚本（自检 → 按需构建 → 启服务）
+├── start.bat                 # Windows 双击入口（调用 run.py）
 ├── outputs/
 │   ├── models/               # *_LR.pkl / *_RF.pkl
 │   ├── figures/              # PR 曲线、混淆矩阵、SHAP 图
@@ -65,6 +67,34 @@ BITCOIN/
 ## 4. 运行顺序
 
 全部命令都在**项目根目录**执行。
+
+### 4.1 推荐：一键启动
+
+```bash
+python run.py                # 自检环境 → 缺什么补什么 → 同时启动 API 与前端
+python run.py --check        # 只检查环境和产物，不启动
+python run.py --api-only     # 只起 API
+python run.py --ui-only      # 只起前端
+python run.py --build        # 从头重建全部产物（含 SHAP，约 7 分钟）
+python run.py --build-core   # 只重建必需产物（不含 SHAP，约 2 分钟）
+```
+
+Windows 上也可以直接双击 `start.bat`。
+
+`run.py` 会依次做四件事：
+
+1. **检查 Python 版本与依赖** —— 按本次要启动的组件判断，
+   `--api-only` 不会因为缺 `streamlit` 就拒绝启动；
+2. **检查三个原始 CSV**；
+3. **探测已构建产物** —— 不是看文件在不在，而是**查表里有没有数据**
+   （避免"建库中途中断、文件在但表是空的"这种假就绪）；
+4. **启动服务**并打印地址，端口被占用时自动改用相邻端口。
+
+> **为什么两个服务是独立的**：`app.py` 与 `streamlit_app.py` 都直接读同一个
+> `elliptic.db`，前端不通过 HTTP 调后端（`streamlit_app.py` 里没有任何
+> `requests` 调用）。所以启动顺序无所谓，只起一个也能用。
+
+### 4.2 手工分步执行（想单独控制每个模块时）
 
 ```bash
 # 模块1：建库（约 2-4 分钟，658MB CSV 分块导入）
@@ -91,6 +121,28 @@ python -m uvicorn app:app --app-dir src --host 127.0.0.1 --port 8000
 python -m streamlit run src/streamlit_app.py
 # 浏览器自动打开 http://localhost:8501
 ```
+
+### 4.3 可选：给 API 加鉴权
+
+默认不鉴权，方便本地演示。设置 `DSH_API_KEY` 后 5 个接口全部要求
+请求头 `X-API-Key`，缺失或错误统一返回 401：
+
+```bash
+# 方式一：环境变量
+export DSH_API_KEY=your-secret           # PowerShell: $env:DSH_API_KEY="your-secret"
+python run.py
+
+# 方式二：命令行参数
+python run.py --api-key your-secret
+
+# 验证
+curl http://127.0.0.1:8000/health                               # 401
+curl -H "X-API-Key: your-secret" http://127.0.0.1:8000/health   # 200
+```
+
+实现上用的是 `secrets.compare_digest()` 做**定长比较**，不是普通 `==`——
+后者匹配失败会提前返回，攻击者能靠请求耗时的分布逐字节猜出密钥（时序攻击）。
+另外 401 的文案统一，不区分"没带密钥"和"密钥错误"。
 
 > **注意**：`app.py` 与 `streamlit_app.py` 都必须能 `import common`。
 > uvicorn 用 `--app-dir src` 指定导入路径（已实测通过）；streamlit 用
